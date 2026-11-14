@@ -16,6 +16,12 @@ export function analysisDir(id: string): string {
   return d;
 }
 
+/** The stored source video in an analysis folder (uploaded, or downloaded from the link), or null. */
+export function findSourceVideo(dir: string): string | null {
+  const f = fs.readdirSync(dir).find((x) => /^source\.(mp4|mkv|webm|mov|m4v|avi)$/i.test(x));
+  return f ? path.join(dir, f) : null;
+}
+
 export function framePath(id: string, file: string): string | null {
   // Only plain file names are allowed; anything with a separator is rejected.
   if (!/^[a-z0-9_.-]+\.jpg$/i.test(file)) return null;

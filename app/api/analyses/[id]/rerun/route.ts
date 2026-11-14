@@ -3,6 +3,7 @@ import { enqueue } from "@/lib/jobs";
 import { requireUser, sameOrigin } from "@/lib/auth";
 import { loadForUser } from "@/lib/access";
 import { priceFor } from "@/lib/settings";
+import { analysisDir, findSourceVideo } from "@/lib/paths";
 
 /** Re-run the pipeline on the stored source; charged like a new analysis, refunded if it fails. */
 export async function POST(req: Request, ctx: RouteContext<"/api/analyses/[id]/rerun">) {
@@ -15,6 +16,13 @@ export async function POST(req: Request, ctx: RouteContext<"/api/analyses/[id]/r
   if (r.error) return r.error;
   if (r.a.status !== "done" && r.a.status !== "error") {
     return Response.json({ error: "Proses masih berjalan." }, { status: 409 });
+  }
+  // An uploaded video can't be fetched again; a link is downloaded again by the pipeline.
+  if (r.a.source_type === "file" && !findSourceVideo(analysisDir(id))) {
+    return Response.json(
+      { error: "Video unggahannya sudah dihapus dari server, jadi analisis ini tidak bisa dijalankan ulang." },
+      { status: 409 },
+    );
   }
   // The owner pays; an admin (own runs, or re-running someone else's for support) is not charged.
   const price = r.a.user_id === g.user.id ? priceFor(g.user) : 0;

@@ -9,7 +9,8 @@ import {
   setResult,
   setStats,
 } from "./db";
-import { analysisDir } from "./paths";
+import { analysisDir, findSourceVideo } from "./paths";
+import { getStorageSettings } from "./settings";
 import { downloadVideo } from "./video/download";
 import { probe } from "./video/probe";
 import { detectCuts, shotStats } from "./video/scenes";
@@ -69,7 +70,7 @@ async function runPipeline(id: string) {
   let transcript: string | null = null;
   let info: Awaited<ReturnType<typeof downloadVideo>>["info"] = null;
   if (row.source_type === "url") {
-    const existing = findSource(dir);
+    const existing = findSourceVideo(dir);
     if (existing) {
       file = existing;
       const t = path.join(dir, "transcript.txt");
@@ -86,8 +87,8 @@ async function runPipeline(id: string) {
       if (info) fs.writeFileSync(path.join(dir, "meta.json"), JSON.stringify(info));
     }
   } else {
-    const existing = findSource(dir);
-    if (!existing) throw new Error("File sumber tidak ditemukan di penyimpanan.");
+    const existing = findSourceVideo(dir);
+    if (!existing) throw new Error("Video unggahan tidak ada lagi di server (mungkin sudah dihapus setelah selesai). Unggah ulang videonya sebagai analisis baru.");
     file = existing;
   }
 
@@ -142,9 +143,14 @@ async function runPipeline(id: string) {
     cover_frame: cover,
     name: analysis.nama?.trim() || undefined,
   });
+
+  // 6. Optionally drop the source video: SKILL.md and the frames (all the zip needs) are already saved.
+  if (getStorageSettings().deleteSourceAfterDone) {
+    try {
+      fs.rmSync(file, { force: true });
+    } catch (e) {
+      console.warn(`[motionrev] could not delete source video of ${id}:`, e);
+    }
+  }
 }
 
-function findSource(dir: string): string | null {
-  const f = fs.readdirSync(dir).find((x) => /^source\.(mp4|mkv|webm|mov|m4v|avi)$/i.test(x));
-  return f ? path.join(dir, f) : null;
-}

@@ -97,6 +97,23 @@ export function saveBillingSettings(b: BillingSettings) {
   setSetting(BILLING_KEY, b);
 }
 
+/* ---------------- storage ---------------- */
+
+export interface StorageSettings {
+  /** Delete the source video (uploaded or downloaded) once SKILL.md is done. Frames and SKILL.md stay. */
+  deleteSourceAfterDone: boolean;
+}
+
+const STORAGE_KEY = "storage";
+
+export function getStorageSettings(): StorageSettings {
+  return getSetting<StorageSettings>(STORAGE_KEY) ?? { deleteSourceAfterDone: false };
+}
+
+export function saveStorageSettings(s: StorageSettings) {
+  setSetting(STORAGE_KEY, s);
+}
+
 /* ---------------- payments ---------------- */
 
 export interface CreditPackage {

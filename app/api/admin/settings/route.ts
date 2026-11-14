@@ -4,15 +4,22 @@ import {
   getAiSettingsPublic,
   getBillingSettings,
   getPaymentSettingsPublic,
+  getStorageSettings,
   saveAiSettings,
   saveBillingSettings,
   savePaymentSettings,
+  saveStorageSettings,
 } from "@/lib/settings";
 
 export async function GET() {
   const g = await requireAdmin();
   if (g.error) return g.error;
-  return Response.json({ ai: getAiSettingsPublic(), billing: getBillingSettings(), payments: getPaymentSettingsPublic() });
+  return Response.json({
+    ai: getAiSettingsPublic(),
+    billing: getBillingSettings(),
+    storage: getStorageSettings(),
+    payments: getPaymentSettingsPublic(),
+  });
 }
 
 const PaymentsInput = z.object({
@@ -44,6 +51,10 @@ const AiInput = z.object({
   clearKey: z.boolean().optional(),
 });
 
+const StorageInput = z.object({
+  deleteSourceAfterDone: z.boolean(),
+});
+
 const BillingInput = z.object({
   pricePerAnalysis: z.number().int().min(0).max(1000),
   signupBonus: z.number().int().min(0).max(1000),
@@ -55,7 +66,7 @@ export async function PUT(req: Request) {
   if (bad) return bad;
   const g = await requireAdmin();
   if (g.error) return g.error;
-  const body = (await req.json().catch(() => null)) as { ai?: unknown; billing?: unknown; payments?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { ai?: unknown; billing?: unknown; payments?: unknown; storage?: unknown } | null;
   if (!body) return Response.json({ error: "Isi permintaan bukan JSON." }, { status: 400 });
 
   if (body.ai !== undefined) {
@@ -71,6 +82,11 @@ export async function PUT(req: Request) {
     if (!p.success) return Response.json({ error: `Pengaturan kredit tidak valid: ${p.error.issues[0]?.message}` }, { status: 400 });
     saveBillingSettings(p.data);
   }
+  if (body.storage !== undefined) {
+    const p = StorageInput.safeParse(body.storage);
+    if (!p.success) return Response.json({ error: "Pengaturan penyimpanan tidak valid." }, { status: 400 });
+    saveStorageSettings(p.data);
+  }
   if (body.payments !== undefined) {
     const p = PaymentsInput.safeParse(body.payments);
     if (!p.success) return Response.json({ error: `Pengaturan pembayaran tidak valid: ${p.error.issues[0]?.message}` }, { status: 400 });
@@ -78,5 +94,10 @@ export async function PUT(req: Request) {
     if (ids.size !== p.data.packages.length) return Response.json({ error: "ID paket tidak boleh kembar." }, { status: 400 });
     savePaymentSettings(p.data);
   }
-  return Response.json({ ai: getAiSettingsPublic(), billing: getBillingSettings(), payments: getPaymentSettingsPublic() });
+  return Response.json({
+    ai: getAiSettingsPublic(),
+    billing: getBillingSettings(),
+    storage: getStorageSettings(),
+    payments: getPaymentSettingsPublic(),
+  });
 }

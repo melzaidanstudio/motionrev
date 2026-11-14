@@ -12,6 +12,7 @@ import { Filmstrip } from "@/components/Filmstrip";
 import { FactsTable } from "@/components/FactsTable";
 import { SkillView } from "@/components/SkillView";
 import { DetailActions } from "@/components/DetailActions";
+import { analysisDir, findSourceVideo } from "@/lib/paths";
 
 export default function AnalysisPage({ params }: PageProps<"/a/[id]">) {
   return (
@@ -46,7 +47,12 @@ async function Detail({ params }: Pick<PageProps<"/a/[id]">, "params">) {
           </h1>
           {a.description && <p className="mt-2 max-w-3xl text-muted">{a.description}</p>}
         </div>
-        <DetailActions id={a.id} status={a.status} hasSkill={Boolean(a.skill_md)} />
+        <DetailActions
+          id={a.id}
+          status={a.status}
+          hasSkill={Boolean(a.skill_md)}
+          sourceDeleted={a.source_type === "file" && !isRunning(a.status) && !findSourceVideo(analysisDir(a.id))}
+        />
       </header>
 
       {running && <ProgressPanel progress={a.progress} step={a.step} />}

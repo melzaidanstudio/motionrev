@@ -3,10 +3,11 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { listRecentPayments, listUsersWithBalance } from "@/lib/db";
-import { getAiSettingsPublic, getBillingSettings, getPaymentSettingsPublic } from "@/lib/settings";
+import { getAiSettingsPublic, getBillingSettings, getPaymentSettingsPublic, getStorageSettings } from "@/lib/settings";
 import { getClaudeCodeAccount } from "@/lib/claudeCodeAccount";
 import { ProviderForm } from "@/components/admin/ProviderForm";
 import { BillingForm } from "@/components/admin/BillingForm";
+import { StorageForm } from "@/components/admin/StorageForm";
 import { PaymentForm } from "@/components/admin/PaymentForm";
 import { PaymentsTable } from "@/components/admin/PaymentsTable";
 import { UsersTable } from "@/components/admin/UsersTable";
@@ -35,9 +36,10 @@ async function Admin() {
     <div className="space-y-10">
       <header>
         <h1 className="text-xl font-semibold">Admin</h1>
-        <p className="mt-1 text-sm text-muted">Penyedia AI, harga dan penjualan kredit, serta saldo pengguna.</p>
+        <p className="mt-1 text-sm text-muted">Penyedia AI, penyimpanan video, harga dan penjualan kredit, serta saldo pengguna.</p>
       </header>
       <ProviderForm initial={getAiSettingsPublic()} claudeCode={await getClaudeCodeAccount()} />
+      <StorageForm initial={getStorageSettings()} />
       <BillingForm initial={getBillingSettings()} />
       <PaymentForm initial={getPaymentSettingsPublic()} webhookUrl={`${origin}/api/payments/doit/webhook`} />
       <PaymentsTable payments={listRecentPayments()} />
