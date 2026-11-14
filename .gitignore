@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# motionrev data (video, frame, sqlite)
+/data
+
+# stories/: keep the code and script, not renders, QA screenshots or audio
+/stories/*/out/
+/stories/*/qa*/
+/stories/*/snaps*/
+/stories/**/*.wav
+/stories/**/*.mp3
+/stories/**/*.mp4
+/stories/*/.hyperframes/

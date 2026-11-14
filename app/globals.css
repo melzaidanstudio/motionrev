@@ -1,26 +1,207 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Tokens from DESIGN.md: charcoal base, off-white text, one amber accent, red only for errors. */
+@theme {
+  --color-bg: #141518;
+  --color-panel: #1c1e22;
+  --color-panel-2: #24272c;
+  --color-line: #2b2e34;
+  --color-line-2: #3a3e46;
+  --color-fg: #e8e6e1;
+  --color-muted: #9d9b95;
+  --color-accent: #f2b134;
+  --color-accent-ink: #1a1200;
+  --color-danger: #f0666a;
+  --color-danger-line: #7a2f32;
+
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-ui: 3px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Keyboard focus: amber ring, the same accent as the playhead. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The timecode ruler motif: short ticks every 8px, a long tick every 80px. */
+.ruler {
+  height: 10px;
+  background-image:
+    repeating-linear-gradient(90deg, var(--color-line-2) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(90deg, var(--color-line) 0 1px, transparent 1px 8px);
+  background-size:
+    80px 10px,
+    8px 5px;
+  background-repeat: repeat-x;
+  background-position:
+    0 0,
+    0 5px;
+}
+
+/* Panel: one tone lighter than the page, separated by a line, never a shadow. */
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-ui);
+}
+
+.field {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line-2);
+  border-radius: var(--radius-ui);
+  color: var(--color-fg);
+  padding: 8px 10px;
+  font: inherit;
+}
+.field::placeholder {
+  color: var(--color-muted);
+}
+.field:disabled {
+  opacity: 0.6;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--radius-ui);
+  border: 1px solid var(--color-line-2);
+  background: var(--color-panel-2);
+  color: var(--color-fg);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover {
+  border-color: var(--color-muted);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+.btn-primary:hover {
+  background: #f7c252;
+  border-color: #f7c252;
+}
+.btn-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger-line);
+  background: transparent;
+}
+.btn-danger:hover {
+  border-color: var(--color-danger);
+}
+
+/* Rendered SKILL.md: paper-like reading column inside the dark panel. */
+.md {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.md h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.md h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 32px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line);
+}
+.md h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+.md p {
+  margin: 0 0 12px;
+}
+.md ul,
+.md ol {
+  margin: 0 0 12px 22px;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li {
+  margin: 4px 0;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-ui);
+  padding: 1px 5px;
+}
+.md pre {
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-ui);
+  padding: 12px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+.md pre code {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.md table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 16px;
+  font-size: 14px;
+  display: block;
+  overflow-x: auto;
+}
+.md th,
+.md td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 10px;
+  border: 1px solid var(--color-line);
+}
+.md th {
+  background: var(--color-panel-2);
+  font-weight: 600;
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  margin: 24px 0;
+}
+.md strong {
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.md a {
+  color: var(--color-accent);
+  text-decoration: underline;
 }
