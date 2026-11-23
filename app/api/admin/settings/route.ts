@@ -43,7 +43,7 @@ const PaymentsInput = z.object({
 });
 
 const AiInput = z.object({
-  provider: z.enum(["anthropic", "openrouter", "custom", "claude-code"]),
+  provider: z.enum(["anthropic", "openrouter", "meta", "custom", "claude-code"]),
   model: z.string().max(120),
   baseUrl: z.string().max(300),
   authHeader: z.enum(["x-api-key", "bearer"]),

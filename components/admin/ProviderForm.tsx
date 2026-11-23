@@ -9,6 +9,8 @@ import { DEFAULT_MODEL, PROVIDER_LABEL as LABEL, type ProviderKind } from "@/lib
 const HELP: Record<ProviderKind, string> = {
   anthropic: "Kunci dari platform.claude.com (diawali sk-ant-). Biaya per token ditagih ke akun Anthropic-mu.",
   openrouter: "Kunci dari openrouter.ai (diawali sk-or-). Memakai endpoint OpenRouter yang kompatibel dengan format Anthropic.",
+  meta:
+    "Kunci dari dev.meta.ai (diawali LLM_). Bayar per token ke akun Meta. Model lain: muse-wonder-1.0 (lebih kuat, lebih mahal). Saat ini API Meta baru dibuka untuk developer di AS.",
   custom: "Gateway lain yang menerima format Messages API Anthropic. Isi base URL tanpa /v1/messages.",
   "claude-code":
     "Memakai CLI claude dan login Claude Code di server ini. Hanya untuk pemakaian pribadi atau pengujian, bukan untuk melayani pengguna lain.",

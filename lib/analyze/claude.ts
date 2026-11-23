@@ -5,11 +5,11 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { AnalysisSchema, type Analysis } from "./schema";
 import { SYSTEM, closingInstruction, factsText, frameLabel, type AnalyzeInput } from "./prompt";
-import { OPENROUTER_BASE_URL, getApiKey, type AiSettings } from "../settings";
+import { META_BASE_URL, OPENROUTER_BASE_URL, getApiKey, type AiSettings } from "../settings";
 
 /**
  * Engine for every Anthropic Messages-compatible provider: Anthropic itself, OpenRouter's
- * Anthropic-compatible endpoint, or another gateway the admin configures. Always the official SDK.
+ * Anthropic-compatible endpoint, Meta Model API (Muse), or another gateway the admin configures. Always the official SDK.
  */
 export async function analyzeWithApi(input: AnalyzeInput, s: AiSettings): Promise<Analysis> {
   const key = getApiKey(s);
@@ -37,6 +37,8 @@ function makeClient(s: AiSettings, key: string): Anthropic {
       return new Anthropic({ ...opts, apiKey: key, authToken: null });
     case "openrouter":
       return new Anthropic({ ...opts, apiKey: null, authToken: key, baseURL: OPENROUTER_BASE_URL });
+    case "meta":
+      return new Anthropic({ ...opts, apiKey: null, authToken: key, baseURL: META_BASE_URL });
     case "custom":
       if (!s.baseUrl) throw new Error("Base URL endpoint belum diisi di pengaturan admin.");
       return s.authHeader === "bearer"

@@ -2,12 +2,13 @@ import { getSetting, setSetting } from "./db";
 import { decryptSecret, encryptSecret, maskSecret } from "./crypto";
 
 import { DEFAULT_MODEL, type ProviderKind } from "./providers";
-export { DEFAULT_MODEL, OPENROUTER_BASE_URL, PROVIDER_LABEL, type ProviderKind } from "./providers";
+export { DEFAULT_MODEL, META_BASE_URL, OPENROUTER_BASE_URL, PROVIDER_LABEL, type ProviderKind } from "./providers";
 
 /**
  * Where analyses run, chosen by the admin.
  *   anthropic   Anthropic API directly (x-api-key)
  *   openrouter  OpenRouter's Anthropic-compatible endpoint (Bearer key)
+ *   meta        Meta Model API (Muse models), Anthropic-compatible (Bearer key)
  *   custom      any other Anthropic Messages-compatible endpoint
  *   claude-code the local `claude` CLI and its own login: personal or development use only
  */
