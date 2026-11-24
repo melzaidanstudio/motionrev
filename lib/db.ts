@@ -33,6 +33,28 @@ export interface FrameRow {
   kind: "cut" | "sample" | "sheet";
 }
 
+/** A Talking Head edit job: the uploaded clip plus the look the user picked. */
+export interface TalkingHeadRow {
+  id: string;
+  user_id: string;
+  source: string; // original file name
+  size_bytes: number;
+  style: string;
+  palette: string; // palette id, or "style" to use the style's own
+  font: string; // font id, or "style"
+  cut_fill: number; // 1: cut pauses and filler words ("eee", "mmm"); 0: keep the take as spoken
+  mode: "render" | "editor"; // render: straight to MP4; editor: build the motlab project and open it in the viewer
+  pending_task: "notes" | null; // "notes": a finished video waits in the queue to have its motlab notes worked
+  revision_summary: string | null; // what the last round of notes changed, in Claude's words
+  status: "queued" | "rendering" | "done" | "error";
+  step: string;
+  error: string | null;
+  output: string | null; // file name of the finished MP4 inside the job folder
+  charge_open: number; // 1 while the credit charged at Generate is not settled
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserRow {
   id: string;
   email: string;
@@ -45,7 +67,7 @@ export interface LedgerRow {
   id: number;
   user_id: string;
   delta: number;
-  reason: "analysis" | "refund" | "topup" | "adjust" | "signup" | "purchase" | "purchase_refund";
+  reason: "analysis" | "talking_head" | "refund" | "topup" | "adjust" | "signup" | "purchase" | "purchase_refund";
   analysis_id: string | null;
   note: string | null;
   created_by: string | null;
@@ -128,6 +150,21 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS payments_by_user ON payments(user_id, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS payments_by_provider ON payments(provider, provider_id);
+CREATE TABLE IF NOT EXISTS talking_heads (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  style TEXT NOT NULL,
+  palette TEXT NOT NULL,
+  font TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  step TEXT NOT NULL DEFAULT '',
+  error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS talking_heads_by_user ON talking_heads(user_id, created_at);
 CREATE TABLE IF NOT EXISTS webhook_events (
   id TEXT PRIMARY KEY,
   provider TEXT NOT NULL,
@@ -150,6 +187,12 @@ function open(): Database.Database {
   addColumn(db, "analyses", "user_id", "user_id TEXT REFERENCES users(id) ON DELETE CASCADE");
   addColumn(db, "analyses", "charge_open", "charge_open INTEGER NOT NULL DEFAULT 0");
   db.exec("CREATE INDEX IF NOT EXISTS analyses_by_user ON analyses(user_id, created_at)");
+  addColumn(db, "talking_heads", "output", "output TEXT");
+  addColumn(db, "talking_heads", "charge_open", "charge_open INTEGER NOT NULL DEFAULT 0");
+  addColumn(db, "talking_heads", "cut_fill", "cut_fill INTEGER NOT NULL DEFAULT 0");
+  addColumn(db, "talking_heads", "mode", "mode TEXT NOT NULL DEFAULT 'render'");
+  addColumn(db, "talking_heads", "pending_task", "pending_task TEXT");
+  addColumn(db, "talking_heads", "revision_summary", "revision_summary TEXT");
   return db;
 }
 
@@ -222,6 +265,131 @@ export function replaceFrames(id: string, frames: Omit<FrameRow, "id" | "analysi
     del.run(id);
     for (const f of frames) ins.run(id, f.idx, f.t, f.file, f.kind);
   })();
+}
+
+/* ---------------- talking heads ---------------- */
+
+/** Create the job and charge for it in one transaction; a failed render refunds it (setTalkingHeadError). */
+export function insertTalkingHeadCharged(
+  t: Pick<TalkingHeadRow, "id" | "user_id" | "source" | "size_bytes" | "style" | "palette" | "font" | "cut_fill" | "mode">,
+  price: number,
+) {
+  db.transaction(() => {
+    const bal = balanceOf(t.user_id);
+    if (bal < price) throw new InsufficientCreditError(bal, price);
+    const t0 = now();
+    db.prepare(
+      `INSERT INTO talking_heads (id, user_id, source, size_bytes, style, palette, font, cut_fill, mode, status, step, charge_open, created_at, updated_at)
+       VALUES (@id, @user_id, @source, @size_bytes, @style, @palette, @font, @cut_fill, @mode, 'queued', 'Menunggu giliran', @open, @t, @t)`,
+    ).run({ ...t, open: price > 0 ? 1 : 0, t: t0 });
+    if (price > 0) {
+      addLedger({ user_id: t.user_id, delta: -price, reason: "talking_head", analysis_id: t.id, note: null, created_by: null });
+    }
+  })();
+}
+
+/** Queue a finished video to have its motlab notes worked, and charge for the round (refunded if it fails). */
+export function queueTalkingHeadNotes(id: string, userId: string, price: number) {
+  db.transaction(() => {
+    const bal = balanceOf(userId);
+    if (bal < price) throw new InsufficientCreditError(bal, price);
+    db.prepare(
+      `UPDATE talking_heads SET status = 'queued', pending_task = 'notes', step = 'Menunggu giliran: kerjakan catatan',
+         error = NULL, charge_open = ?, updated_at = ? WHERE id = ?`,
+    ).run(price > 0 ? 1 : 0, now(), id);
+    if (price > 0) {
+      addLedger({ user_id: userId, delta: -price, reason: "talking_head", analysis_id: id, note: "kerjakan catatan", created_by: null });
+    }
+  })();
+}
+
+/** A round of notes is done: the video stays finished, with what changed. `output` is set when it was re-rendered. */
+export function setTalkingHeadNotesDone(id: string, summary: string, output?: string) {
+  db.prepare(
+    `UPDATE talking_heads SET status = 'done', step = 'Selesai', pending_task = NULL, error = NULL, charge_open = 0,
+       revision_summary = ?, output = COALESCE(?, output), updated_at = ? WHERE id = ?`,
+  ).run(summary.slice(0, 4000), output ?? null, now(), id);
+}
+
+/** A round of notes failed: the video stays as it was (still finished), the error is shown and the charge refunded. */
+export function setTalkingHeadNotesFailed(id: string, message: string) {
+  db.transaction(() => {
+    refundTalkingHead(id, "kerjakan catatan gagal");
+    db.prepare(
+      "UPDATE talking_heads SET status = 'done', step = 'Selesai', pending_task = NULL, error = ?, updated_at = ? WHERE id = ?",
+    ).run(`Catatan gagal dikerjakan: ${message}`.slice(0, 1000), now(), id);
+  })();
+}
+
+/** Take a notes round back out of the queue before it starts: the video is finished again and the charge refunded. */
+export function cancelTalkingHeadNotes(id: string) {
+  db.transaction(() => {
+    refundTalkingHead(id, "kerjakan catatan dibatalkan");
+    db.prepare(
+      "UPDATE talking_heads SET status = 'done', step = 'Selesai', pending_task = NULL, updated_at = ? WHERE id = ? AND status = 'queued'",
+    ).run(now(), id);
+  })();
+}
+
+function refundTalkingHead(id: string, note: string) {
+  const t = getTalkingHead(id);
+  if (!t || !t.charge_open) return;
+  const last = db
+    .prepare("SELECT delta FROM credit_ledger WHERE analysis_id = ? AND reason = 'talking_head' ORDER BY id DESC LIMIT 1")
+    .get(id) as { delta: number } | undefined;
+  if (last && last.delta < 0) {
+    addLedger({ user_id: t.user_id, delta: -last.delta, reason: "refund", analysis_id: id, note, created_by: null });
+  }
+  db.prepare("UPDATE talking_heads SET charge_open = 0 WHERE id = ?").run(id);
+}
+
+export function setTalkingHeadStep(id: string, status: "queued" | "rendering", step: string) {
+  db.prepare("UPDATE talking_heads SET status = ?, step = ?, error = NULL, updated_at = ? WHERE id = ?").run(status, step, now(), id);
+}
+
+export function setTalkingHeadDone(id: string, output: string | null) {
+  db.prepare(
+    "UPDATE talking_heads SET status = 'done', step = 'Selesai', error = NULL, output = ?, charge_open = 0, updated_at = ? WHERE id = ?",
+  ).run(output, now(), id);
+}
+
+/** Mark failed and give back the credit charged at Generate, once. */
+export function setTalkingHeadError(id: string, message: string) {
+  db.transaction(() => {
+    db.prepare("UPDATE talking_heads SET status = 'error', step = 'Gagal', error = ?, updated_at = ? WHERE id = ?").run(
+      message.slice(0, 1000),
+      now(),
+      id,
+    );
+    const t = getTalkingHead(id);
+    if (!t || !t.charge_open) return;
+    const last = db
+      .prepare("SELECT delta FROM credit_ledger WHERE analysis_id = ? AND reason = 'talking_head' ORDER BY id DESC LIMIT 1")
+      .get(id) as { delta: number } | undefined;
+    if (last && last.delta < 0) {
+      addLedger({ user_id: t.user_id, delta: -last.delta, reason: "refund", analysis_id: id, note: "render talking head gagal", created_by: null });
+    }
+    db.prepare("UPDATE talking_heads SET charge_open = 0 WHERE id = ?").run(id);
+  })();
+}
+
+export function listTalkingHeads(userId: string): TalkingHeadRow[] {
+  return db.prepare("SELECT * FROM talking_heads WHERE user_id = ? ORDER BY created_at DESC").all(userId) as TalkingHeadRow[];
+}
+
+/** Every job still waiting or rendering, across users, in the order the worker takes them. */
+export function listTalkingHeadBacklog(): Pick<TalkingHeadRow, "id" | "status">[] {
+  return db
+    .prepare("SELECT id, status FROM talking_heads WHERE status IN ('queued', 'rendering') ORDER BY status = 'queued', created_at")
+    .all() as Pick<TalkingHeadRow, "id" | "status">[];
+}
+
+export function getTalkingHead(id: string): TalkingHeadRow | undefined {
+  return db.prepare("SELECT * FROM talking_heads WHERE id = ?").get(id) as TalkingHeadRow | undefined;
+}
+
+export function deleteTalkingHead(id: string) {
+  db.prepare("DELETE FROM talking_heads WHERE id = ?").run(id);
 }
 
 export function deleteAnalysis(id: string) {
@@ -315,6 +483,14 @@ export function countUsers(): number {
 
 export function getUserByEmail(email: string): UserRow | undefined {
   return db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined;
+}
+
+/** New password; every other session of this user is signed out, the current one stays. */
+export function setPassword(userId: string, passwordHash: string, keepTokenHash: string | null) {
+  db.transaction(() => {
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, userId);
+    db.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash IS NOT ?").run(userId, keepTokenHash);
+  })();
 }
 
 export function getUser(id: string): UserRow | undefined {

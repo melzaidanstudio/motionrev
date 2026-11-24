@@ -25,7 +25,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       });
       const j = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(j.error || `Server menjawab ${res.status}.`);
-      router.push("/");
+      router.push("/beranda");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal.");

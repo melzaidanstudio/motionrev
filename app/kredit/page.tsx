@@ -11,6 +11,7 @@ export const metadata = { title: "Kredit · motionrev" };
 
 const REASON: Record<LedgerRow["reason"], string> = {
   analysis: "Analisis",
+  talking_head: "Talking Head",
   refund: "Pengembalian",
   topup: "Top-up admin",
   adjust: "Koreksi admin",
@@ -38,7 +39,7 @@ async function Credits({ searchParams }: Pick<PageProps<"/kredit">, "searchParam
   const ledger = listLedger(user.id);
 
   return (
-    <div className="grid gap-8 md:grid-cols-[360px_minmax(0,1fr)] md:items-start">
+    <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
       <div className="space-y-4">
         {bayar && <PaymentStatus id={bayar} />}
 

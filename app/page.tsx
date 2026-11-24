@@ -26,16 +26,16 @@ async function HomeContent() {
   const balance = balanceOf(user.id);
 
   return (
-    <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_360px] md:items-start">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <AutoRefresh active={running} />
-      <section aria-labelledby="pustaka-h" className="order-2 min-w-0 md:order-1">
+      <section aria-labelledby="pustaka-h" className="order-2 min-w-0 lg:order-1">
         <h1 id="pustaka-h" className="text-xl font-semibold">
           Pustaka
         </h1>
         <p className="mt-1 mb-4 text-sm text-muted">Semua video yang pernah kamu bedah, terbaru di atas.</p>
         <AnalysisList items={items} />
       </section>
-      <aside id="bedah-baru" className="order-1 min-w-0 md:order-2 md:sticky md:top-6">
+      <aside id="bedah-baru" className="order-1 min-w-0 lg:order-2 lg:sticky lg:top-6">
         <NewAnalysisForm price={price} balance={balance} />
       </aside>
     </div>

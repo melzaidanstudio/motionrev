@@ -16,6 +16,12 @@ export function analysisDir(id: string): string {
   return d;
 }
 
+export function talkingHeadDir(id: string): string {
+  const d = path.join(dataDir(), "talking-heads", id);
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
 /** The stored source video in an analysis folder (uploaded, or downloaded from the link), or null. */
 export function findSourceVideo(dir: string): string | null {
   const f = fs.readdirSync(dir).find((x) => /^source\.(mp4|mkv|webm|mov|m4v|avi)$/i.test(x));

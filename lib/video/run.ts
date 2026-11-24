@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { FFMPEG_THREAD_ARGS, threadEnv } from "../threads";
 
 export interface RunResult {
   stdout: string;
@@ -14,12 +15,13 @@ export function run(
   return new Promise((resolve, reject) => {
     execFile(
       cmd,
-      args,
+      // ffmpeg is held to the app-wide thread cap; the options go before its first input.
+      cmd === "ffmpeg" ? [...FFMPEG_THREAD_ARGS, ...args] : args,
       {
         cwd: opts.cwd,
         timeout: opts.timeoutMs ?? 10 * 60 * 1000,
         maxBuffer: opts.maxBuffer ?? 64 * 1024 * 1024,
-        env: { ...process.env, PYTHONIOENCODING: "utf-8" },
+        env: { ...threadEnv(), PYTHONIOENCODING: "utf-8" },
       },
       (err, stdout, stderr) => {
         if (err) {
