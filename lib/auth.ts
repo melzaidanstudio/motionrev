@@ -1,8 +1,14 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { deleteSession, getSessionUser, insertSession, type UserRow } from "./db";
+import { deleteSession, getOwner, getSessionUser, insertSession, type UserRow } from "./db";
 import { hashToken, newToken } from "./crypto";
+
+/**
+ * Login is switched off while the app has a single user: every request acts as the owner (the oldest admin).
+ * Set back to true before letting anyone else reach the app.
+ */
+export const LOGIN_ENABLED = false;
 
 export const SESSION_COOKIE = "mr_session";
 const SESSION_DAYS = 30;
@@ -16,6 +22,10 @@ function narrow(u: UserRow): SessionUser {
 /** The signed-in user, or null. Reads the request cookie, so call it inside a Suspense boundary. */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   await connection(); // the expiry check compares against the current time: request-time only
+  if (!LOGIN_ENABLED) {
+    const owner = getOwner();
+    return owner ? narrow(owner) : null;
+  }
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const u = getSessionUser(hashToken(token));

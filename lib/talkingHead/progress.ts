@@ -115,9 +115,12 @@ export function clipDuration(dir: string): number | null {
   }
 }
 
-/** Expected wall time of a whole render for a clip of this length: setup plus roughly 20 s per second. */
+/**
+ * Expected wall time of a whole task for a clip of this length: about 10 minutes of setup plus 30 s per second of
+ * video (motlab runs so far: a 10 s clip took 10–21 min, an 18 s clip 21–39 min).
+ */
 export function expectedSeconds(duration: number | null): number {
-  return Math.round(300 + 20 * (duration ?? 60));
+  return Math.round(600 + 30 * (duration ?? 60));
 }
 
 export interface ProgressView {
@@ -137,7 +140,12 @@ export function progressOf(s: RenderStatus, duration: number | null, now = Date.
   // Within a phase, creep toward its end over its share of the expected time, never reaching it.
   const share = ((ph.to - ph.from) / 100) * expected;
   const inPhase = Math.max(0, (now - Date.parse(s.phaseAt)) / 1000);
-  const pct = Math.min(ph.to - 1, ph.from + (ph.to - ph.from) * Math.min(0.9, inPhase / Math.max(60, share)));
+  const phasePct = Math.min(ph.to - 1, ph.from + (ph.to - ph.from) * Math.min(0.9, inPhase / Math.max(60, share)));
+  // Claude does not work in a straight line (it checks frames early and builds again after), so the phase alone
+  // can stall the bar for many minutes. Time keeps it moving: an easing curve that is about 80% at the expected
+  // length and keeps creeping after, never reaching the end until the task is really done.
+  const timePct = 95 * (1 - Math.exp((-1.6 * elapsed) / expected));
+  const pct = Math.min(s.phase === 5 ? 99 : 97, Math.max(phasePct, timePct));
   // Early on trust the length-based guess; once there is real progress, the observed pace.
   const paced = pct >= 15 ? elapsed / (pct / 100) : expected;
   const total = pct < 50 ? (expected + paced) / 2 : paced;

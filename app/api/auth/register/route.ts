@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { createUser, getUserByEmail } from "@/lib/db";
 import { hashPassword } from "@/lib/crypto";
-import { sameOrigin, startSession } from "@/lib/auth";
+import { LOGIN_ENABLED, sameOrigin, startSession } from "@/lib/auth";
 import { getBillingSettings } from "@/lib/settings";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
+  if (!LOGIN_ENABLED) return Response.json({ error: "Login sedang dimatikan." }, { status: 404 });
   const bad = sameOrigin(req);
   if (bad) return bad;
   const body = (await req.json().catch(() => ({}))) as { email?: string; password?: string };

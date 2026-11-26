@@ -493,6 +493,11 @@ export function setPassword(userId: string, passwordHash: string, keepTokenHash:
   })();
 }
 
+/** The oldest admin account: the app's owner, used while login is switched off. */
+export function getOwner(): UserRow | undefined {
+  return db.prepare("SELECT * FROM users WHERE role = 'admin' ORDER BY created_at LIMIT 1").get() as UserRow | undefined;
+}
+
 export function getUser(id: string): UserRow | undefined {
   return db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
 }

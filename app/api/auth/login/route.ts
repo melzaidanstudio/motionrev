@@ -1,8 +1,9 @@
 import { getUserByEmail } from "@/lib/db";
 import { verifyPassword } from "@/lib/crypto";
-import { clearLoginFailures, loginBlocked, noteLoginFailure, sameOrigin, startSession } from "@/lib/auth";
+import { clearLoginFailures, loginBlocked, noteLoginFailure, sameOrigin, startSession, LOGIN_ENABLED } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  if (!LOGIN_ENABLED) return Response.json({ error: "Login sedang dimatikan." }, { status: 404 });
   const bad = sameOrigin(req);
   if (bad) return bad;
   const body = (await req.json().catch(() => ({}))) as { email?: string; password?: string };

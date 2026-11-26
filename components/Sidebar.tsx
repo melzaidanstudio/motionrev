@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, LOGIN_ENABLED } from "@/lib/auth";
 import { balanceOf } from "@/lib/db";
 import { LogoutButton } from "./LogoutButton";
 import { SidebarNav, type NavGroup } from "./SidebarNav";
@@ -41,15 +41,17 @@ export async function Sidebar() {
           <nav aria-label="Menu utama" className="min-w-0 flex-1 md:mt-2 md:overflow-y-auto">
             <SidebarNav groups={groups} />
           </nav>
-          <div className="shrink-0 pr-2 text-sm md:hidden">
-            <LogoutButton />
-          </div>
+          {LOGIN_ENABLED && (
+            <div className="shrink-0 pr-2 text-sm md:hidden">
+              <LogoutButton />
+            </div>
+          )}
           <div className="hidden border-t border-line px-3 pt-3 md:block">
             <p className="truncate text-sm" title={user.email}>
               {user.email}
             </p>
             <p className="text-xs text-muted">{user.role === "admin" ? "Admin" : "Pengguna"}</p>
-            <LogoutButton />
+            {LOGIN_ENABLED && <LogoutButton />}
           </div>
         </>
       ) : (

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, LOGIN_ENABLED } from "@/lib/auth";
 import { getUser } from "@/lib/db";
 import { getBrandKit } from "@/lib/brandKit";
 import { relativeDate } from "@/lib/format";
@@ -50,13 +50,15 @@ async function Content() {
         </dl>
       </section>
 
-      <section aria-labelledby="pw-h" className="panel p-5">
-        <h2 id="pw-h" className="text-base font-semibold">
-          Kata sandi
-        </h2>
-        <p className="mt-1 mb-4 text-sm text-muted">Setelah diganti, semua perangkat lain yang masih masuk akan dikeluarkan.</p>
-        <PasswordForm />
-      </section>
+      {LOGIN_ENABLED && (
+        <section aria-labelledby="pw-h" className="panel p-5">
+          <h2 id="pw-h" className="text-base font-semibold">
+            Kata sandi
+          </h2>
+          <p className="mt-1 mb-4 text-sm text-muted">Setelah diganti, semua perangkat lain yang masih masuk akan dikeluarkan.</p>
+          <PasswordForm />
+        </section>
+      )}
 
       <section aria-labelledby="pref-h" className="panel p-5">
         <h2 id="pref-h" className="text-base font-semibold">
@@ -72,15 +74,17 @@ async function Content() {
         </Link>
       </section>
 
-      <section aria-labelledby="sesi-h" className="panel p-5">
-        <h2 id="sesi-h" className="text-base font-semibold">
-          Sesi
-        </h2>
-        <p className="mt-1 text-sm text-muted">Keluar dari motionrev di perangkat ini.</p>
-        <div className="mt-2">
-          <LogoutButton />
-        </div>
-      </section>
+      {LOGIN_ENABLED && (
+        <section aria-labelledby="sesi-h" className="panel p-5">
+          <h2 id="sesi-h" className="text-base font-semibold">
+            Sesi
+          </h2>
+          <p className="mt-1 text-sm text-muted">Keluar dari motionrev di perangkat ini.</p>
+          <div className="mt-2">
+            <LogoutButton />
+          </div>
+        </section>
+      )}
     </>
   );
 }

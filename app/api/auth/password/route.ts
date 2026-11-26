@@ -1,10 +1,11 @@
 import { cookies } from "next/headers";
 import { getUser, setPassword } from "@/lib/db";
 import { hashPassword, hashToken, verifyPassword } from "@/lib/crypto";
-import { SESSION_COOKIE, requireUser, sameOrigin } from "@/lib/auth";
+import { LOGIN_ENABLED, SESSION_COOKIE, requireUser, sameOrigin } from "@/lib/auth";
 
 /** Change the signed-in user's password after checking the current one. Other devices are signed out. */
 export async function POST(req: Request) {
+  if (!LOGIN_ENABLED) return Response.json({ error: "Login sedang dimatikan." }, { status: 404 });
   const bad = sameOrigin(req);
   if (bad) return bad;
   const g = await requireUser();
