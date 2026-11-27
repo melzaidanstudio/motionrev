@@ -39,3 +39,22 @@ export function run(
     );
   });
 }
+
+/** Like run(), but stdout comes back as raw bytes (decoded frames). */
+export function runBuffer(cmd: string, args: string[], opts: { timeoutMs?: number; maxBuffer?: number } = {}): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      cmd,
+      cmd === "ffmpeg" ? [...FFMPEG_THREAD_ARGS, ...args] : args,
+      { encoding: "buffer", timeout: opts.timeoutMs ?? 5 * 60 * 1000, maxBuffer: opts.maxBuffer ?? 256 * 1024 * 1024, env: threadEnv() },
+      (err, stdout, stderr) => {
+        if (err) {
+          const head = String(stderr || err.message).trim().split("\n").slice(-6).join("\n");
+          reject(new Error(`${cmd} gagal: ${head}`));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
+  });
+}

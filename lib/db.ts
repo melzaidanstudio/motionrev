@@ -20,9 +20,16 @@ export interface AnalysisRow {
   stats_json: string | null; // measured facts from ffprobe/ffmpeg
   cover_frame: string | null; // file name inside frames/
   charge_open: number; // 1 while a credit charge for the current run is not settled
+  audit_json: string | null; // QaReport of the visual SKILL.md
+  script_audit_json: string | null; // QaReport of the script skill
+  script_md: string | null; // the script skill (SKILL naskah) reverse-engineered from the transcript
+  script_status: ScriptStatus | null; // null when nothing is waiting or running
+  script_error: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type ScriptStatus = "queued" | "running" | "error";
 
 export interface FrameRow {
   id: number;
@@ -30,7 +37,7 @@ export interface FrameRow {
   idx: number;
   t: number; // seconds
   file: string;
-  kind: "cut" | "sample" | "sheet";
+  kind: "cut" | "end" | "change" | "speech" | "sample" | "sheet" | "strip";
 }
 
 /** A Talking Head edit job: the uploaded clip plus the look the user picked. */
@@ -186,6 +193,11 @@ function open(): Database.Database {
   // Columns added after the first release; existing databases get them here.
   addColumn(db, "analyses", "user_id", "user_id TEXT REFERENCES users(id) ON DELETE CASCADE");
   addColumn(db, "analyses", "charge_open", "charge_open INTEGER NOT NULL DEFAULT 0");
+  addColumn(db, "analyses", "script_md", "script_md TEXT");
+  addColumn(db, "analyses", "audit_json", "audit_json TEXT");
+  addColumn(db, "analyses", "script_audit_json", "script_audit_json TEXT");
+  addColumn(db, "analyses", "script_status", "script_status TEXT");
+  addColumn(db, "analyses", "script_error", "script_error TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS analyses_by_user ON analyses(user_id, created_at)");
   addColumn(db, "talking_heads", "output", "output TEXT");
   addColumn(db, "talking_heads", "charge_open", "charge_open INTEGER NOT NULL DEFAULT 0");
@@ -238,14 +250,25 @@ export function setError(id: string, message: string) {
 
 export function setResult(
   id: string,
-  r: { description: string; skill_md: string; analysis_json: string; cover_frame: string | null; name?: string },
+  r: { description: string; skill_md: string; analysis_json: string; audit_json: string; cover_frame: string | null; name?: string },
 ) {
   db.prepare(
     `UPDATE analyses SET status = 'done', progress = 100, step = 'Selesai', error = NULL, charge_open = 0,
-       description = @description, skill_md = @skill_md, analysis_json = @analysis_json,
+       description = @description, skill_md = @skill_md, analysis_json = @analysis_json, audit_json = @audit_json,
        cover_frame = @cover_frame, name = COALESCE(@name, name), updated_at = @t
      WHERE id = @id`,
   ).run({ id, t: now(), name: r.name ?? null, ...r });
+}
+
+/** Progress of the script skill, which runs apart from the visual analysis. */
+export function setScriptState(id: string, status: ScriptStatus | null, error: string | null = null) {
+  db.prepare("UPDATE analyses SET script_status = ?, script_error = ?, updated_at = ? WHERE id = ?").run(status, error, now(), id);
+}
+
+export function setScriptDone(id: string, md: string, auditJson: string) {
+  db.prepare(
+    "UPDATE analyses SET script_md = ?, script_audit_json = ?, script_status = NULL, script_error = NULL, updated_at = ? WHERE id = ?",
+  ).run(md, auditJson, now(), id);
 }
 
 export function setStats(id: string, stats: unknown) {

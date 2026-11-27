@@ -23,7 +23,9 @@ export const AnalysisSchema = z.object({
     ),
   komposisi: z
     .string()
-    .describe("Markdown. Tata letak layar: di mana judul, subjek, caption; safe area; rasio; ruang kosong; pola yang berulang."),
+    .describe(
+      "Markdown. Tata letak layar sebagai pita dari atas ke bawah dengan rentang persen TINGGI frame (isi dan warna tiap pita), diperiksa di minimal tiga adegan, dengan pengecualian per adegan. Lalu di mana judul, subjek, caption; safe area; ruang kosong; pola yang berulang.",
+    ),
   editing: z
     .string()
     .describe(
@@ -43,7 +45,28 @@ export const AnalysisSchema = z.object({
     .describe("Markdown. Animasi teks, elemen grafis, easing, durasi masuk/keluar, kamera virtual, stiker, highlight. Tulis 'tidak ada' bila memang tidak ada."),
   teks_dan_caption: z
     .string()
-    .describe("Markdown. Caption: ada atau tidak, posisi, font, warna sorotan, per kata atau per baris, kasus huruf. Judul dan label di layar."),
+    .describe("Markdown. Judul, subjudul, label, chip, dan angka di layar: posisi (px asli dan % tinggi), font, bobot, ukuran px, warna, kasus huruf, kapan muncul. Caption narasi ditulis di field caption."),
+  caption: z
+    .object({
+      ada: z.boolean(),
+      posisi: z.string().describe("Letak pita caption: px asli dan % tinggi frame, rata kiri/tengah, lebar maksimal"),
+      font: z.string().describe("Jenis, bobot, kasus huruf, ukuran px asli dan % tinggi"),
+      warna: z.string().describe("Hex untuk kata yang sedang diucapkan, kata yang sudah lewat, dan kata berikutnya bila terlihat"),
+      unit: z.string().describe("Per kata, per frasa, atau per kalimat; berapa kata per halaman; jumlah baris yang terlihat (dengan timecode contoh)"),
+      masuk_keluar: z.string().describe("Bagaimana kata masuk (fade, blur, pop) dan bagaimana satu halaman caption hilang, dari potongan gerak pita caption"),
+      sorotan: z.string().describe("Penanda kata kunci: bentuk, warna isi dan garis (hex), satu kotak per kata atau per frasa, berapa per kalimat, contoh timecode"),
+    })
+    .describe("Perilaku caption narasi. Isi ada=false dan field lain '-' bila tidak ada caption."),
+  perangkat_berulang: z
+    .array(
+      z.object({
+        nama: z.string().describe("Nama perangkat: penampang x-ray, label garis penunjuk, chip, penghitung angka, tracker langkah, kotak sorotan, dll"),
+        deskripsi: z.string().describe("Tampilan dan animasinya, dengan warna hex dan posisi"),
+        muncul: z.array(z.string()).describe("Setiap timecode hh:mm:ss.ff saat perangkat ini terlihat (awal tiap kemunculan)"),
+      }),
+    )
+    .describe("Setiap perangkat visual yang dipakai, termasuk yang hanya muncul sekali, dengan semua kemunculannya."),
+  akhir_video: z.string().describe("Bagaimana video berakhir di detik-detik terakhir: shot apa, fade ke hitam, loop ke awal, kartu akhir. Dengan timecode."),
   audio_dugaan: z
     .string()
     .describe("Apa yang bisa disimpulkan soal audio dari visual dan transkrip (narasi, musik, SFX). Tandai jelas sebagai dugaan bila tidak ada transkrip."),

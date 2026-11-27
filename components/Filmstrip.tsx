@@ -18,9 +18,10 @@ export function Filmstrip({
 }) {
   // Tiles keep the video's own aspect: tall tiles for portrait, wide tiles for landscape.
   const landscape = width > height;
-  // Shot numbers count only shot-start frames; uniform samples sit between them.
+  // Shot numbers count only shot-start frames; the other picks sit between them.
   let shotNo = 0;
-  const labels = frames.map((f) => (f.kind === "cut" ? `shot ${++shotNo}` : "sampel"));
+  const other: Record<string, string> = { end: "akhir shot", change: "perubahan", speech: "kalimat", sample: "sampel" };
+  const labels = frames.map((f) => (f.kind === "cut" ? `shot ${++shotNo}` : (other[f.kind] ?? "sampel")));
   return (
     <div className="panel overflow-x-auto">
       <ol className="flex gap-2 p-3">

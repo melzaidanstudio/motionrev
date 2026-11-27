@@ -1,53 +1,41 @@
 import { spawn } from "node:child_process";
 import { z } from "zod";
-import { AnalysisSchema, type Analysis } from "./schema";
-import { SYSTEM, closingInstruction, factsText, frameLabel, type AnalyzeInput } from "./prompt";
 
 /**
- * Engine "claude-code": the local `claude` CLI in headless mode (`-p`), which uses whatever login
- * Claude Code already has on this machine. Frames are read by Claude with its Read tool, and the
- * answer is forced into our schema with `--json-schema`.
+ * Engine "claude-code": the local `claude` CLI in headless mode (`-p`), which uses whatever login Claude Code already
+ * has on this machine. Images are read by Claude with its Read tool, and the answer is forced into the schema with
+ * `--json-schema`.
  *
- * This is for personal, local use. Serving other users from one Claude Code login is not what the
- * subscription allows; a hosted deployment should use the "api" engine with its own key.
+ * This is for personal, local use. Serving other users from one Claude Code login is not what the subscription
+ * allows; a hosted deployment should use the "api" engine with its own key.
  */
-export async function analyzeWithClaudeCode(input: AnalyzeInput, modelSetting?: string): Promise<Analysis> {
+/** One headless `claude -p` call whose answer must match `schema`. */
+export async function runClaudeCodeJson<T>(
+  schema: z.ZodType<T>,
+  o: { system: string; prompt: string; cwd: string; model?: string; what: string; tools?: string; effort?: "high" | "xhigh" | "max" },
+): Promise<T> {
   // The CLI's validator rejects the draft-2020-12 `$schema` marker zod adds; the schema itself is fine.
-  const schema = z.toJSONSchema(AnalysisSchema) as Record<string, unknown>;
-  delete schema.$schema;
-  const model = modelSetting || process.env.MOTIONREV_MODEL || "opus";
-
-  const files = [
-    ...(input.sheet ? [`- frames/${input.sheet}  (contact sheet seluruh video, dibaca kiri ke kanan, atas ke bawah)`] : []),
-    ...input.frames.map((f) => `- frames/${f.file}  ${frameLabel(f)}`),
-  ];
-  const prompt = [
-    factsText(input),
-    "",
-    "FILE GAMBAR (baca SEMUA dengan tool Read, satu per satu, sebelum menjawab; path relatif terhadap folder kerja):",
-    ...files,
-    "",
-    closingInstruction(input),
-    "Jawab hanya dengan JSON sesuai skema yang diminta.",
-  ].join("\n");
+  const json = z.toJSONSchema(schema) as Record<string, unknown>;
+  delete json.$schema;
+  const model = o.model || process.env.MOTIONREV_MODEL || "opus";
 
   const args = [
     "-p",
     "--output-format",
     "json",
     "--json-schema",
-    JSON.stringify(schema),
+    JSON.stringify(json),
     "--system-prompt",
-    SYSTEM,
+    o.system,
     "--tools",
-    "Read",
+    o.tools ?? "Read",
     "--permission-mode",
     "dontAsk",
     "--model",
     model,
     "--effort",
-    "high",
-    prompt,
+    o.effort ?? "high",
+    o.prompt,
   ];
 
   // Strip the markers Claude Code sets in its own child processes, so the CLI accepts a nested run.
@@ -57,7 +45,7 @@ export async function analyzeWithClaudeCode(input: AnalyzeInput, modelSetting?: 
 
   const raw = await new Promise<string>((resolve, reject) => {
     // stdin is closed up front: the CLI otherwise waits for piped input before starting.
-    const child = spawn("claude", args, { cwd: input.dir, env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("claude", args, { cwd: o.cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
@@ -100,13 +88,13 @@ export async function analyzeWithClaudeCode(input: AnalyzeInput, modelSetting?: 
   }
   if (result.is_error || result.subtype !== "success") {
     const why = typeof result.result === "string" ? result.result.slice(0, 400) : result.subtype;
-    throw new Error(`Claude Code tidak menyelesaikan analisis (${result.subtype ?? "error"}): ${why}`);
+    throw new Error(`Claude Code tidak menyelesaikan ${o.what} (${result.subtype ?? "error"}): ${why}`);
   }
 
   const candidate =
     result.structured_output ??
     (typeof result.result === "string" ? safeJson(result.result) : undefined);
-  const parsed = AnalysisSchema.safeParse(candidate);
+  const parsed = schema.safeParse(candidate);
   if (!parsed.success) {
     throw new Error(`Jawaban Claude Code tidak cocok dengan skema: ${parsed.error.issues[0]?.message ?? "?"}`);
   }

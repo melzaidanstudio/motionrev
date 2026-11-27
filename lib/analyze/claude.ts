@@ -1,30 +1,31 @@
-import fs from "node:fs";
-import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { AnalysisSchema, type Analysis } from "./schema";
-import { SYSTEM, closingInstruction, factsText, frameLabel, type AnalyzeInput } from "./prompt";
 import { META_BASE_URL, OPENROUTER_BASE_URL, getApiKey, type AiSettings } from "../settings";
 
 /**
- * Engine for every Anthropic Messages-compatible provider: Anthropic itself, OpenRouter's
- * Anthropic-compatible endpoint, Meta Model API (Muse), or another gateway the admin configures. Always the official SDK.
+ * One Messages call whose answer must match `schema`, on any Anthropic Messages-compatible provider: Anthropic itself,
+ * OpenRouter's Anthropic-compatible endpoint, Meta Model API (Muse), or another gateway the admin configures. Always
+ * the official SDK.
  */
-export async function analyzeWithApi(input: AnalyzeInput, s: AiSettings): Promise<Analysis> {
+export async function runApiJson<T>(
+  s: AiSettings,
+  schema: z.ZodType<T>,
+  system: string,
+  content: Anthropic.Beta.BetaContentBlockParam[],
+): Promise<T> {
   const key = getApiKey(s);
   if (!key) throw new Error("Admin belum mengisi kunci API penyedia. Buka Admin, lalu Penyedia AI.");
 
   const client = makeClient(s, key);
-  const content = buildContent(input);
   const isAnthropic = s.provider === "anthropic";
 
   try {
-    return await runStructured(client, s.model, content, isAnthropic);
+    return await runStructured(client, s.model, schema, system, content, isAnthropic);
   } catch (e) {
     // Gateways may not implement structured output. Ask for JSON in the prompt instead and validate it.
     if (!isAnthropic && e instanceof Anthropic.BadRequestError) {
-      return await runJsonPrompt(client, s.model, content);
+      return await runJsonPrompt(client, s.model, schema, system, content);
     }
     throw describe(e);
   }
@@ -49,52 +50,42 @@ function makeClient(s: AiSettings, key: string): Anthropic {
   }
 }
 
-function buildContent(input: AnalyzeInput): Anthropic.Beta.BetaContentBlockParam[] {
-  const content: Anthropic.Beta.BetaContentBlockParam[] = [{ type: "text", text: factsText(input) }];
-  if (input.sheet) {
-    content.push({ type: "text", text: "Contact sheet seluruh video, dibaca kiri ke kanan, atas ke bawah:" });
-    content.push(image(path.join(input.framesDir, input.sheet)));
-  }
-  for (const f of input.frames) {
-    content.push({ type: "text", text: frameLabel(f) });
-    content.push(image(path.join(input.framesDir, f.file)));
-  }
-  content.push({ type: "text", text: closingInstruction(input) });
-  return content;
-}
-
-async function runStructured(
+async function runStructured<T>(
   client: Anthropic,
   model: string,
+  schema: z.ZodType<T>,
+  system: string,
   content: Anthropic.Beta.BetaContentBlockParam[],
   isAnthropic: boolean,
-): Promise<Analysis> {
+): Promise<T> {
   const stream = client.beta.messages.stream({
     model,
     max_tokens: 16000,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content }],
-    output_config: { effort: "high", format: betaZodOutputFormat(AnalysisSchema) },
+    output_config: { effort: "high", format: betaZodOutputFormat(schema) },
     // Server-side refusal fallback exists only on Anthropic's own API.
     ...(isAnthropic ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
   });
   const msg = await stream.finalMessage();
   checkStop(msg.stop_reason);
   if (!msg.parsed_output) throw new Error("Jawaban model tidak bisa dibaca sebagai JSON terstruktur.");
-  return msg.parsed_output;
+  return msg.parsed_output as T;
 }
 
-async function runJsonPrompt(
+async function runJsonPrompt<T>(
   client: Anthropic,
   model: string,
+  schema: z.ZodType<T>,
+  baseSystem: string,
   content: Anthropic.Beta.BetaContentBlockParam[],
-): Promise<Analysis> {
-  const schema = z.toJSONSchema(AnalysisSchema) as Record<string, unknown>;
-  delete schema.$schema;
+): Promise<T> {
+  const json = z.toJSONSchema(schema) as Record<string, unknown>;
+  delete json.$schema;
   const system =
-    SYSTEM +
+    baseSystem +
     "\n\nKeluaran: satu objek JSON valid yang cocok dengan JSON Schema berikut, tanpa teks lain, tanpa pagar kode.\n" +
-    JSON.stringify(schema);
+    JSON.stringify(json);
 
   let msg: Anthropic.Beta.BetaMessage;
   try {
@@ -106,7 +97,7 @@ async function runJsonPrompt(
   }
   checkStop(msg.stop_reason);
   const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-  const parsed = AnalysisSchema.safeParse(extractJson(text));
+  const parsed = schema.safeParse(extractJson(text));
   if (!parsed.success) {
     throw new Error(`Jawaban model tidak cocok dengan skema: ${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`);
   }
@@ -138,11 +129,4 @@ function describe(e: unknown): Error {
   if (e instanceof Anthropic.APIConnectionError) return new Error(`Tidak bisa terhubung ke penyedia: ${e.message}`);
   if (e instanceof Anthropic.APIError) return new Error(`Penyedia menjawab ${e.status}: ${e.message}`);
   return e instanceof Error ? e : new Error(String(e));
-}
-
-function image(file: string): Anthropic.Beta.BetaImageBlockParam {
-  return {
-    type: "image",
-    source: { type: "base64", media_type: "image/jpeg", data: fs.readFileSync(file).toString("base64") },
-  };
 }

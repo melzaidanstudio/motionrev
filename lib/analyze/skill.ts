@@ -2,7 +2,9 @@ import type { Analysis } from "./schema";
 import { slugify, timecode } from "../format";
 import type { ProbeInfo } from "../video/probe";
 import type { ShotStats } from "../video/scenes";
-import type { KeyFrame } from "../video/frames";
+import { frameKindLabel, type KeyFrame, type MotionStrip } from "../video/frames";
+import type { SheetPage } from "./prompt";
+import { qaSection, type QaReport } from "./qa";
 
 export interface SkillInput {
   name: string;
@@ -13,6 +15,11 @@ export interface SkillInput {
   stats: ShotStats;
   cuts: number[];
   frames: KeyFrame[];
+  sheets: SheetPage[];
+  strips: MotionStrip[];
+  /** The audit result; left out while the document is being audited. */
+  qa?: QaReport;
+  transcriptSource: "whisper" | "platform" | null;
   createdAt: Date;
 }
 
@@ -99,12 +106,40 @@ export function composeSkillMd(i: SkillInput): string {
   out.push(a.motion_graphics.trim());
   out.push("");
 
-  out.push("## Teks dan caption");
+  out.push("## Teks dan label di layar");
   out.push("");
   out.push(a.teks_dan_caption.trim());
   out.push("");
 
-  out.push("## Audio (dugaan dari visual dan transkrip)");
+  out.push("## Caption narasi");
+  out.push("");
+  if (a.caption.ada) {
+    out.push(`- **Posisi:** ${a.caption.posisi}`);
+    out.push(`- **Font:** ${a.caption.font}`);
+    out.push(`- **Warna:** ${a.caption.warna}`);
+    out.push(`- **Unit:** ${a.caption.unit}`);
+    out.push(`- **Masuk dan keluar:** ${a.caption.masuk_keluar}`);
+    out.push(`- **Sorotan kata kunci:** ${a.caption.sorotan}`);
+  } else {
+    out.push("Tidak ada caption narasi.");
+  }
+  out.push("");
+
+  if (a.perangkat_berulang.length) {
+    out.push("## Perangkat visual");
+    out.push("");
+    out.push("| Perangkat | Tampilan | Muncul pada |");
+    out.push("|---|---|---|");
+    for (const d of a.perangkat_berulang) out.push(`| ${esc(d.nama)} | ${esc(d.deskripsi)} | ${esc(d.muncul.join(", "))} |`);
+    out.push("");
+  }
+
+  out.push("## Akhir video");
+  out.push("");
+  out.push(a.akhir_video.trim());
+  out.push("");
+
+  out.push(i.transcriptSource === "whisper" ? "## Audio dan narasi" : "## Audio (dugaan dari visual dan transkrip)");
   out.push("");
   out.push(a.audio_dugaan.trim());
   out.push("");
@@ -141,9 +176,13 @@ export function composeSkillMd(i: SkillInput): string {
   out.push("");
   for (const f of i.frames) {
     const cover = f.idx === a.cover_frame_index ? " (sampul)" : "";
-    out.push(`- \`frames/${f.file}\` · ${timecode(f.t)} · ${f.kind === "cut" ? "awal shot" : "sampel"}${cover}`);
+    out.push(`- \`frames/${f.file}\` · ${timecode(f.t)} · ${frameKindLabel(f.kind)}${cover}`);
   }
+  for (const sh of i.sheets) out.push(`- \`frames/${sh.file}\` · contact sheet ${timecode(sh.start)}–${timecode(sh.end)}, timecode di tiap ubin`);
+  for (const st of i.strips) out.push(`- \`frames/${st.file}\` · potongan gerak: ${st.label}`);
   out.push("");
+
+  if (i.qa) out.push(...qaSection(i.qa));
 
   out.push("## Catatan keyakinan");
   out.push("");
@@ -156,7 +195,9 @@ export function composeSkillMd(i: SkillInput): string {
   out.push("");
   out.push(
     `Dibuat oleh motionrev pada ${i.createdAt.toISOString().slice(0, 10)} dari ${i.sourceType === "url" ? i.source : `file ${i.source}`}. ` +
-      "Audio tidak dianalisis langsung; bagian audio adalah dugaan.",
+      (i.transcriptSource === "whisper"
+        ? "Narasi ditranskrip dari audio dengan whisper; musik dan efek suara tetap dugaan."
+        : "Audio tidak dianalisis langsung; bagian audio adalah dugaan."),
   );
   out.push("");
   return out.join("\n");
